@@ -1,126 +1,121 @@
 import type {
-    IExecuteFunctions,
-    INodeExecutionData,
-    INodeType,
-    INodeTypeDescription,
-    ILoadOptionsFunctions,
-    INodePropertyOptions,
+	INodeType,
+	INodeTypeDescription,
+	ISupplyDataFunctions,
+	SupplyData,
+	ILoadOptionsFunctions,
+	INodePropertyOptions,
 } from 'n8n-workflow';
+import { NodeConnectionTypes } from 'n8n-workflow';
+import { ChatOpenAI } from '@langchain/openai';
 
 export class TelekomLlmChatModel implements INodeType {
-    description: INodeTypeDescription = {
-        displayName: 'Telekom LLM',
-        name: 'telekomLlmChatModel',
-        icon: 'file:telekom.svg',
-        group: ['transform'],
-        version: 1,
-        description: 'T-Systems LLM Hub – OpenAI-compatible Chat Model',
-        defaults: { name: 'Telekom LLM' },
-        inputs: ['main'],
-        outputs: ['main'],
-        credentials: [{ name: 'telekomLlmApi', required: true }],
-        properties: [
-            {
-                displayName: 'Model',
-                name: 'model',
-                type: 'options',
-                typeOptions: { loadOptionsMethod: 'getModels' },
-                default: 'llama-3.3-70B-Instruct',
-                required: true,
-            },
-            {
-                displayName: 'System Message',
-                name: 'systemMessage',
-                type: 'string',
-                typeOptions: { rows: 4 },
-                default: 'You are a helpful assistant.',
-            },
-            {
-                displayName: 'User Message',
-                name: 'userMessage',
-                type: 'string',
-                typeOptions: { rows: 4 },
-                default: '',
-                required: true,
-            },
-            {
-                displayName: 'Temperature',
-                name: 'temperature',
-                type: 'number',
-                typeOptions: { minValue: 0, maxValue: 2, numberPrecision: 1 },
-                default: 0.7,
-            },
-            {
-                displayName: 'Max Tokens',
-                name: 'maxTokens',
-                type: 'number',
-                default: 256,
-            },
-        ],
-    };
+	description: INodeTypeDescription = {
+		displayName: 'Telekom LLM Chat Model',
+		name: 'telekomLlmChatModel',           // WICHTIG: kleiner Buchstabe am Anfang (n8n-Konvention)
+		icon: { light: 'file:telekom.svg', dark: 'file:telekom.dark.svg' },
+		group: ['transform'],
+		version: 1,
+		description: 'T-Systems LLM Hub – OpenAI-kompatibler Chat-Model',
+		defaults: { name: 'Telekom LLM Chat Model' },
+		inputs: [],
+		outputs: [NodeConnectionTypes.AiLanguageModel],
+		outputNames: ['Model'],
 
-    methods = {
-        loadOptions: {
-            async getModels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-                try {
-                    const credentials = await this.getCredentials('telekomLlmApi');
-                    const baseUrl = (credentials.baseUrl as string) || 'https://llm-server.llmhub.t-systems.net/v2';
+		codex: {
+			categories: ['AI'],
+			subcategories: {
+				AI: ['Language Models', 'Root Nodes'],
+				'Language Models': ['Chat Models (Recommended)'],
+			},
+			resources: {
+				primaryDocumentation: [{ url: 'https://llmhub.t-systems.net' }],
+			},
+		},
 
-                    const response = await this.helpers.httpRequestWithAuthentication.call(this, 'telekomLlmApi', {
-                        method: 'GET',
-                        url: '/models',
-                        baseURL: baseUrl,
-                    });
+		credentials: [{ name: 'telekomLlmApi', required: true }],
 
-                    if (!response.data || !Array.isArray(response.data)) throw new Error('Invalid response');
+		requestDefaults: {
+			baseURL: '={{ $credentials?.baseUrl }}',
+			ignoreHttpStatusErrors: true,
+		},
 
-                    return response.data
-                        .map((m: any) => ({ name: m.id, value: m.id }))
-                        .sort((a: any, b: any) => a.name.localeCompare(b.name));
-                } catch {
-                    return [
-                        { name: 'llama-3.3-70B-Instruct (Fallback)', value: 'llama-3.3-70B-Instruct' },
-                        { name: 'claude-3-5-sonnet (Fallback)', value: 'claude-3-5-sonnet' },
-                        { name: 'gemini-2.5-flash (Fallback)', value: 'gemini-2.5-flash' },
-                    ];
-                }
-            },
-        },
-    };
+		properties: [
+			{
+				displayName: 'Hinweis',
+				name: 'notice',
+				type: 'notice',
+				default: 'Verbinde diesen Node mit einem AI Agent oder Chain für beste Ergebnisse.',
+			},
+			{
+				displayName: 'Model',
+				name: 'model',
+				type: 'options',
+				noDataExpression: true,
+				typeOptions: { loadOptionsMethod: 'getModels' },
+				default: 'llama-3.3-70B-Instruct',
+				description: 'Wähle das gewünschte Modell aus dem T-Systems LLM Hub',
+			},
+			{
+				displayName: 'Optionen',
+				name: 'options',
+				type: 'collection',
+				placeholder: 'Erweiterte Parameter',
+				default: {},
+				options: [
+					{ displayName: 'Temperature', name: 'temperature', type: 'number', default: 0.7, typeOptions: { minValue: 0, maxValue: 2, numberPrecision: 2 } },
+					{ displayName: 'Max Tokens', name: 'maxTokens', type: 'number', default: -1, description: '-1 = keine Begrenzung' },
+					{ displayName: 'Top P', name: 'topP', type: 'number', default: 1, typeOptions: { minValue: 0, maxValue: 1, numberPrecision: 2 } },
+				],
+			},
+		],
+	};
 
-    async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-        const items = this.getInputData();
-        const returnData: INodeExecutionData[] = [];
-        const credentials = await this.getCredentials('telekomLlmApi');
-        const baseUrl = credentials.baseUrl as string;
+	methods = {
+		loadOptions: {
+			async getModels(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				try {
+					const credentials = await this.getCredentials('telekomLlmApi');
+					const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '');
 
-        for (let i = 0; i < items.length; i++) {
-            const model = this.getNodeParameter('model', i) as string;
-            const systemMessage = this.getNodeParameter('systemMessage', i) as string;
-            const userMessage = this.getNodeParameter('userMessage', i) as string;
-            const temperature = this.getNodeParameter('temperature', i) as number;
-            const maxTokens = this.getNodeParameter('maxTokens', i) as number;
+					const response = await this.helpers.httpRequestWithAuthentication.call(this, 'telekomLlmApi', {
+						method: 'GET',
+						url: '/models',
+						baseURL: baseUrl,
+					});
 
-            const body = {
-                model,
-                messages: [
-                    { role: 'system', content: systemMessage },
-                    { role: 'user', content: userMessage },
-                ],
-                temperature,
-                max_tokens: maxTokens,
-            };
+					if (!response?.data?.length) throw new Error('Keine Modelle empfangen');
 
-            const response = await this.helpers.httpRequestWithAuthentication.call(this, 'telekomLlmApi', {
-                method: 'POST',
-                url: '/chat/completions',
-                baseURL: baseUrl,
-                body,
-                json: true,
-            });
+					return response.data
+						.map((m: any) => ({ name: m.id, value: m.id }))
+						.sort((a: INodePropertyOptions, b: INodePropertyOptions) => a.name.localeCompare(b.name));
+				} catch {
+					return [
+						{ name: 'llama-3.3-70B-Instruct', value: 'llama-3.3-70B-Instruct' },
+						{ name: 'claude-3-5-sonnet', value: 'claude-3-5-sonnet' },
+						{ name: 'gemini-2.5-flash', value: 'gemini-2.5-flash' },
+					];
+				}
+			},
+		},
+	};
 
-            returnData.push({ json: response, pairedItem: i });
-        }
-        return [returnData];
-    }
+	async supplyData(this: ISupplyDataFunctions, itemIndex = 0): Promise<SupplyData> {
+		const credentials = await this.getCredentials('telekomLlmApi');
+		const modelName = this.getNodeParameter('model', itemIndex) as string;
+		const options = this.getNodeParameter('options', itemIndex, {}) as any;
+
+		const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '');
+
+		const model = new ChatOpenAI({
+			model: modelName,
+			apiKey: credentials.apiKey as string,
+			configuration: { baseURL: baseUrl },
+			temperature: options.temperature ?? 0.7,
+			maxTokens: options.maxTokens === -1 ? undefined : options.maxTokens,
+			topP: options.topP ?? 1,
+		});
+
+		return { response: model };
+	}
 }
