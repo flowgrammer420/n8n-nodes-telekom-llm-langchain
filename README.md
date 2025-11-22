@@ -245,3 +245,24 @@ Have suggestions for improving this starter? [Open an issue](https://github.com/
 ## License
 
 [MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+
+
+-----------------------------------------------------------------
+
+Notizen
+
+
+1. starter kit laden = n8n default 
+2. customer node laden = hier das repo
+3. Ordner = "custom" in n8n / docker erstellen = n8n --> home/node/.n8n/custom
+4. pnpm install
+5. pnpm run build
+7. win_docker_deploy.bat ausführen für import
+
+8. Info: win_docker_deploy.bat datei Zeile 25 Volume anpassen. set VOLUME_NAME=self-n8n_n8n_storage
+  _n8n_storage am ende ist immer gleich.
+Anpassen self-n8n so wie man das Repo benennt. Ordnername 
+     
+
+
+

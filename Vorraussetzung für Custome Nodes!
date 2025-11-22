@@ -1,0 +1,20 @@
+
+Vorraussetzung für Custome Nodes! create Ordner custom
+
+innerhalb von dem n8n starter kit 
+
+1. pfad zu n8n öffnen = self-hosted-ai-starter-kit
+2. docker compose up
+3. docker ps      = während n8n ausgeführt wird 
+3. docker exec -it n8n /bin/sh    = shell öffnen
+
+Shell: 
+1. cd /home/node/.n8n/
+2. ls -a
+
+Create: 
+3. mkdir custom
+4. cd custom/
+5. ls -la
+6. pwd
+7. exit
