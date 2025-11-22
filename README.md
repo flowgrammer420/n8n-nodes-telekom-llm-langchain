@@ -263,6 +263,6 @@ Notizen
   _n8n_storage am ende ist immer gleich.
 Anpassen self-n8n so wie man das Repo benennt. Ordnername 
      
-
+Logo für die Langchain Chat Model = .dark.svg  !!!
 
 
